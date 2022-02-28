@@ -24,14 +24,18 @@
 //** Defines for external devices **//
 
 #define TIME_DELAY 100
+
+#define THROTTLE_UPPER_LIM 1700 // Upper throttle limit for the flitest Radial 1806 2280kV, must not send a value greater than 1700
+#define THROTTLE_LOWER_LIM 900  // Lower throttle limit for the flitest Radial 1806 2280kV, minimum value needed for ESC to arm itself
+
 RF24 controller_radio(RADIO_CE_PIN, RADIO_CSN_PIN); // CE, CSN         
 
 //** Data structures **//
 
 struct data_plane_control_package{
-int rudder_out; 
-int elevator_out;  
-int motor_out; 
+  int rudder_out; 
+  int elevator_out;  
+  int motor_out; 
 } data;
 
 void setup() 
@@ -51,7 +55,17 @@ void loop()
   
   data.rudder_out = map(data.rudder_out, 0, 1023, 0, 180); // remap value to required value
   data.elevator_out = map(data.elevator_out, 0, 1023, 10, 140);
-  data.motor_out = map(data.motor_out, 0, 300, 880, 1600); 
+  data.motor_out = map(data.motor_out, 0, 300, 880, 1700); 
+
+  if (data.motor_out > THROTTLE_UPPER_LIM)
+  {
+    data.motor_out = THROTTLE_UPPER_LIM;
+  }
+
+  if (data.motor_out < THROTTLE_LOWER_LIM)
+  {
+    data.motor_out = THROTTLE_LOWER_LIM; 
+  }
   
   #ifdef DEBUG_PRINT
   Serial.print("Rudder value: ");
