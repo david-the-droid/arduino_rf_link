@@ -1,4 +1,4 @@
-# arduino_rf_link
+## rf_ping
 Example project that demonstrates a ping, that is used to calculate ping return success when extending the distance between each radio
 
 
