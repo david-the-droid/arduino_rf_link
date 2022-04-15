@@ -47,6 +47,7 @@ void setup()
   #endif
   
 }
+
 void loop()
 {
   data.rudder_out = analogRead(RUDDER_CONTROL_PIN); // read the current analogue pin value
