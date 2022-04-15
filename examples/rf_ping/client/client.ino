@@ -16,6 +16,7 @@
 //** Pre-processor defines **//
 
 #define DEBUG_PRINT // comment out to disable debug print
+#define DEBUG_PACKET_INFO
 
 //** Digital defines **//
 
@@ -37,11 +38,17 @@ RF24 controller_radio(RADIO_CE_PIN, RADIO_CSN_PIN); // CE, CSN
 
 //** Data structures **//
 
-struct data_plane_control_package{
+struct data_transmit_packet{
   int rudder_out; 
   int elevator_out;  
   int motor_out; 
-} data;
+} data_tx;
+
+struct data_receive_packet{
+  int rudder_out; 
+  int elevator_out;
+  int motor_out;
+} data_rx;
 
 //** Test variables **//
 
@@ -51,7 +58,7 @@ unsigned long current_millis = 0; // Read the current value
 
 void setup() 
 {
-  radio_setup( controller_radio ); // Configure the controller_radio
+  radio_setup(controller_radio); // Configure the controller_radio
   #ifdef DEBUG_PRINT
   Serial.begin(BAUDRATE);
   Serial.println("Initialisation complete");
@@ -66,20 +73,76 @@ void loop()
   if (current_millis - print_previous_millis >= PRINT_DELAY) // send approx 10 times a second
     {
       // here a packet needs to be sent
-
       // step 1. Switch the radio into transmitter mode
-      // step 2. Read the analog values from control input
-      // step 3. Send radio payload
-      // Step 4. Switch the radio back to listening mode
-     
-      Serial.println("Sending packet");
-      print_previous_millis = current_millis;
+      controller_radio.stopListening();          
       
+      // step 2. Read the analog values from control input
+      data_tx.rudder_out = analogRead(RUDDER_CONTROL_PIN); // read the current analogue pin value
+      data_tx.elevator_out = analogRead(ELEVATOR_CONTROL_PIN); 
+      data_tx.motor_out = analogRead(MOTOR_CONTROL_PIN); 
+      
+      data_tx.rudder_out = map(data_tx.rudder_out, 0, 1023, 0, 180); // remap value to required value
+      data_tx.elevator_out = map(data_tx.elevator_out, 0, 1023, 10, 140);
+      data_tx.motor_out = map(data_tx.motor_out, 0, 300, 880, 1700); 
+    
+      if (data_tx.motor_out > THROTTLE_UPPER_LIM)
+      {
+        data_tx.motor_out = THROTTLE_UPPER_LIM;
+      }
+    
+      if (data_tx.motor_out < THROTTLE_LOWER_LIM)
+      {
+        data_tx.motor_out = THROTTLE_LOWER_LIM; 
+      }
+      
+      #if defined(DEBUG_PRINT) && defined(DEBUG_PACKET_INFO)
+      Serial.println("Sending packet");
+      Serial.print("Rudder value: ");
+      Serial.println(data_tx.rudder_out);
+      Serial.print("Elevator value: ");
+      Serial.println(data_tx.elevator_out);
+      Serial.print("Motor value: ");
+      Serial.println(data_tx.motor_out);
+      #endif
+          
+      // step 3. Send radio payload
+      controller_radio.write(&data_tx, sizeof(data_transmit_packet));
+      
+      // Step 4. Switch the radio back to listening mode
+      controller_radio.startListening();
+
+      // Step 5. Log the current milli second and await another 100mS  
+      print_previous_millis = current_millis;
+          
     }
 
   // step 1. Is radio packet available
-  // step 2. (if above true) unpack data and count/display received packet
-  // step 3. Switch the radio back to transmissions mode
+  if(controller_radio.available())
+   { 
+      // step 2. (if above true) unpack data
+      controller_radio.read(&data_rx, sizeof(data_receive_packet));
+
+      if (data_rx.motor_out > THROTTLE_UPPER_LIM)
+      {
+        data_rx.motor_out = THROTTLE_UPPER_LIM;
+      }
+      if (data_rx.motor_out < THROTTLE_LOWER_LIM)
+      {
+        data_rx.motor_out = THROTTLE_LOWER_LIM;
+      } 
+      
+      #ifdef DEBUG_PRINT
+      Serial.print("Value for motor output is : ");
+      Serial.println(data.motor_out);
+      Serial.print("Value for rudder output is : ");
+      Serial.println(data.rudder_out);
+      Serial.print("Value for elevator output is : ");
+      Serial.println(data.elevator_out);
+      #endif
+
+      // Step 3. Switch radio back to listening mode
+      controller_radio.startListening();  
+  }
 }
 
 
@@ -92,5 +155,5 @@ void radio_setup( RF24 radio_dev )
   radio_dev.setPALevel(RF24_PA_MIN);  // You can set it as minimum or maximum depending on the distance between the transmitter and receiver.
   radio_dev.enableDynamicPayloads();  
   radio_dev.powerUp();
-  radio_dev.stopListening();          // This sets the module as transmitter
+  radio_dev.startListening();
 }
